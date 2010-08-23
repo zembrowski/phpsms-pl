@@ -1,7 +1,12 @@
 <?php
 /*
- * Copyright (c) <2009-2010> Krzysztof Zembrowski <krzysztof@zembrowski.pl>
  * Klasa: orange v0.1 beta
+ *
+ * (c) <2009-2010> Written by: Krzysztof Zembrowski
+ * MIT License: http://www.opensource.org/licenses/mit-license.php
+ *
+ * Part of `phpsms-pl`
+ * http://code.google.com/p/phpsms-pl/
  *
  * Pozwala zarejestrowanym użytkownikom orange.pl wysyłać
  * wiadomości SMS do wszystkich sieci przy użyciu bramki mBox
