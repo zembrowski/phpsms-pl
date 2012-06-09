@@ -1,8 +1,8 @@
 <?php
 /*
- * Klasa: orange v0.1 beta
+ * Klasa: orange v0.2 beta
  *
- * (c) <2009-2010> Written by: Krzysztof Zembrowski
+ * (c) <2009-2012> Written by: Krzysztof Tomasz Zembrowski
  * MIT License: http://www.opensource.org/licenses/mit-license.php
  *
  * Part of `phpsms-pl`
@@ -11,15 +11,15 @@
  * Pozwala zarejestrowanym użytkownikom orange.pl wysyłać
  * wiadomości SMS do wszystkich sieci przy użyciu bramki mBox
  *
- * Wersja bez COOKIE_JAR. Nie tworzy żadnych plików
+ * Wersja bez COOKIE_JAR. Nie tworzy plików
  *
  * Wymagania:
- * - konto użytkownika orange.pl
- * - PHP5, cURL, Xpaths
+ * + konto użytkownika orange.pl
+ * + PHP5, cURL, Xpaths
  *
  * To do:
- * - error handling
- * - speed up!
+ * - compare left SMS before and after
+ * ? login request result as token (impossible due to false redirect)
  */
  
 $login = 'login'; // nazwa użytkownika orange.pl
@@ -40,7 +40,9 @@ try {
 	$o = new orange();
 	$o -> Debug = true;
 	$o -> time('start');
-	if ($o -> login ($login, $password)) echo $o -> split ($number, $content);
+	if ($o -> login ($login, $password)) echo $o -> send ($number, $content);
+	# Dziel dłuższe wiadomości
+	//if ($o -> login ($login, $password)) echo $o -> split ($number, $content);
 	echo $o -> time('end');
 } catch (Exception $e) {
 	echo '[ERROR] ' . $e -> getMessage();
@@ -53,10 +55,12 @@ class orange
 	 *
 	 * @var $_curl
 	 * @var $_cookie
+	 * @var $_before - EXPERIMENTAL
 	 * @var[array] $_time
 	 */
 	protected $_curl;
 	protected $_cookie;
+	protected $_before;
 	protected $_time = array();
 
 	/**
@@ -66,10 +70,11 @@ class orange
 	 * @var string $*url - odnośniki
 	 * @var string $length - maksymalna długość wiadomości, jeśli większa - dzielona na części o podanej długości
 	 */
-	private $useragent = 'Mozilla/5.0 (Windows; U; Windows NT 6.0; pl; rv:1.9.2.8) Gecko/20090722 Firefox/3.6.8';
-	private $loginurl = 'http://www.orange.pl/portal/map/map/signin';
-	private $smsurl = 'http://www.orange.pl/portal/map/map/message_box?mbox_view=newsms';
-	private $actionurl = 'http://www.orange.pl/portal/map/map/message_box?_DARGS=/gear/mapmessagebox/smsform.jsp';
+	private $useragent = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_7_4) AppleWebKit/534.57.2 (KHTML, like Gecko) Version/5.1.7 Safari/534.57.2';
+	private $loginformurl = 'https://www.orange.pl/zaloguj.phtml';
+	private $loginposturl = 'https://www.orange.pl/zaloguj.phtml?_DARGS=/ocp/gear/infoportal/portlets/login/login-box.jsp';
+	private $smsformurl = 'https://www.orange.pl/portal/map/map/message_box?mbox_edit=new&mbox_view=newsms';
+	private $smsposturl = 'https://www.orange.pl/portal/map/map/message_box?_DARGS=/gear/mapmessagebox/smsform.jsp';
 	private $length = '640';
 	
 	/**
@@ -93,7 +98,7 @@ class orange
 
 		$var = array(
 			CURLOPT_URL => $url,
-			CURLOPT_HEADER => (empty($this->_cookie))?true:false,
+			CURLOPT_HEADER => true,
 			CURLOPT_USERAGENT => $this->useragent,
 			CURLOPT_RETURNTRANSFER => true,
 			CURLOPT_FOLLOWLOCATION => true,
@@ -116,14 +121,29 @@ class orange
 
 		$result = curl_exec($this->_curl);
 		
-		if (empty($this->_cookie)) {
-			preg_match_all('/^Set-Cookie:\s+(.*);/mU', $result, $match);
-			$this->_cookie = implode(';', array_unique($match[1]));
-		}
+		if (!empty($result)) $this->cookies($result);
 
 		return $result;
 
 		curl_close($this->_curl);
+	}
+
+	/**
+	 * Przetwarza ciasteczka
+	 *
+	 * @param string $content - zawartość strony
+	 */
+	private function cookies ($content)
+	{
+		preg_match_all('/^Set-Cookie:\s+(.*);/mU', $content, $match);
+		if (empty($this->_cookie)) {
+			$this->_cookie = implode(';', array_unique($match[1]));
+		} else {
+			$old = explode(";",$this->_cookie);
+			$new = array_unique($match[1]);
+			$cookies = array_merge($old, $new);
+			$this->_cookie = implode(';', array_unique($cookies));
+		}
 	}
 
 	/**
@@ -134,23 +154,31 @@ class orange
 	 */
 	public function login ($login, $password)
 	{
+		
 		$data = array(
 		'_dyncharset' => 'UTF-8',
-		'/amg/ptk/map/core/formhandlers/AdvancedProfileFormHandler.loginErrorURL' => $this->loginurl,
-		'_D:/amg/ptk/map/core/formhandlers/AdvancedProfileFormHandler.loginErrorURL=' => '',
-		'/amg/ptk/map/core/formhandlers/AdvancedProfileFormHandler.loginSuccessURL' => 'http://www.orange.pl/portal/map/map/pim',
-		'_D:/amg/ptk/map/core/formhandlers/AdvancedProfileFormHandler.loginSuccessURL' => '',
-		'/amg/ptk/map/core/formhandlers/AdvancedProfileFormHandler.value.login' => $login,
-		'_D:/amg/ptk/map/core/formhandlers/AdvancedProfileFormHandler.value.login' => '',
-		'/amg/ptk/map/core/formhandlers/AdvancedProfileFormHandler.value.password' => $password,
-		'_D:/amg/ptk/map/core/formhandlers/AdvancedProfileFormHandler.value.password' => '',
-		'/amg/ptk/map/core/formhandlers/AdvancedProfileFormHandler.login.x' => rand(0,50),
-		'/amg/ptk/map/core/formhandlers/AdvancedProfileFormHandler.login.y' => rand(0,25),
-		'_D:/amg/ptk/map/core/formhandlers/AdvancedProfileFormHandler.login' => '',
-		'_DARGS' => '/gear/static/signInLoginBox.jsp'
+        '_dynSessConf' => '-2354258262419359049',
+        '/tp/core/profile/login/ProfileLoginFormHandler.loginErrorURL' => $this->smsformurl,
+        '_D:/tp/core/profile/login/ProfileLoginFormHandler.loginErrorURL' => '',
+        '/tp/core/profile/login/ProfileLoginFormHandler.loginSuccessURL' => '',
+        '_D:/tp/core/profile/login/ProfileLoginFormHandler.loginSuccessURL' => '',
+        '/tp/core/profile/login/ProfileLoginFormHandler.firstEnter' => true,
+        '_D:/tp/core/profile/login/ProfileLoginFormHandler.firstEnter' => '',
+        '/tp/core/profile/login/ProfileLoginFormHandler.value.login' => $login,
+        '_D:/tp/core/profile/login/ProfileLoginFormHandler.value.login' => '',
+        '/tp/core/profile/login/ProfileLoginFormHandler.value.password' => $password,
+        '_D:/tp/core/profile/login/ProfileLoginFormHandler.value.password' => '',
+        '/tp/core/profile/login/ProfileLoginFormHandler.rememberMe' => true,
+        '_D:/tp/core/profile/login/ProfileLoginFormHandler.rememberMe' => '',
+        '/tp/core/profile/login/ProfileLoginFormHandler.login.x' => rand(0,60),
+        '/tp/core/profile/login/ProfileLoginFormHandler.login.y' => rand(0,30),
+        '_D:/tp/core/profile/login/ProfileLoginFormHandler.login' => '',
+        '_DARGS' => '/ocp/gear/infoportal/portlets/login/login-box.jsp'
 		);
 
-		$sent = $this->curl($this->loginurl, $data);
+		curl_setopt($this->_curl, CURLOPT_REFERER, $this->logiformurl);
+
+		$sent = $this->curl($this->loginposturl, $data);
 
 		return $this->check($sent);
 	}
@@ -165,35 +193,35 @@ class orange
 	public function send ($to, $body, $summary = true)
 	{
 		if (strlen($body) <= 0 || strlen($body) > 640) { throw new Exception('Wiadomość musi być dłuższa niż 0 znaków, natomiast krótsza niż 640 znaków');}
-
+		
 		$data = array(
 		'_dyncharset' => 'UTF-8',
+		'_dynSessConf' => '3180938745375173535',
 		'/amg/ptk/map/messagebox/formhandlers/MessageFormHandler.type' => 'sms',
 		'_D:/amg/ptk/map/messagebox/formhandlers/MessageFormHandler.type' => '',
-		'enabled' => 'true',
-		'/amg/ptk/map/messagebox/formhandlers/MessageFormHandler.token' => $this->token(),
-		'_D:/amg/ptk/map/messagebox/formhandlers/MessageFormHandler.token' => '',
 		'/amg/ptk/map/messagebox/formhandlers/MessageFormHandler.errorURL' => '/portal/map/map/message_box?mbox_view=newsms',
 		'_D:/amg/ptk/map/messagebox/formhandlers/MessageFormHandler.errorURL' => '',
-		'/amg/ptk/map/messagebox/formhandlers/MessageFormHandler.successURL' => '/portal/map/map/message_box?mbox_view=messageslist',
+		'/amg/ptk/map/messagebox/formhandlers/MessageFormHandler.successURL' => '/portal/map/map/message_box?mbox_view=sentmessageslist',
 		'_D:/amg/ptk/map/messagebox/formhandlers/MessageFormHandler.successURL' =>'',
 		'/amg/ptk/map/messagebox/formhandlers/MessageFormHandler.to' => $to,
 		'_D:/amg/ptk/map/messagebox/formhandlers/MessageFormHandler.to' => '',
 		'/amg/ptk/map/messagebox/formhandlers/MessageFormHandler.body' => $body,
 		'_D:/amg/ptk/map/messagebox/formhandlers/MessageFormHandler.body' => '',
-		'/amg/ptk/map/messagebox/formhandlers/MessageFormHandler.create' => 'Wyślij',
-		'_D:/amg/ptk/map/messagebox/formhandlers/MessageFormHandler.create' => '',
+		'/amg/ptk/map/messagebox/formhandlers/MessageFormHandler.token' => $this->token(),
+		'_D:/amg/ptk/map/messagebox/formhandlers/MessageFormHandler.token' => '',
+		'enabled' => true,
 		'/amg/ptk/map/messagebox/formhandlers/MessageFormHandler.create.x' => rand(0,50),
 		'/amg/ptk/map/messagebox/formhandlers/MessageFormHandler.create.y' => rand(0,25),
+		'/amg/ptk/map/messagebox/formhandlers/MessageFormHandler.create' => 'Wyślij',
+		'_D:/amg/ptk/map/messagebox/formhandlers/MessageFormHandler.create' => '',
 		'_DARGS' => '/gear/mapmessagebox/smsform.jsp'
 		);
 
-		curl_setopt($this->_curl, CURLOPT_REFERER, $this->smsurl);
+		curl_setopt($this->_curl, CURLOPT_REFERER, $this->smsformurl);
 
-		$sent = $this->curl($this->actionurl, $data);
+		$sent = $this->curl($this->smsposturl, $data);
 
 		if ( $this->check($sent) && $summary) {
-			$result = $this->result('Wiadomość została wysłana prawidłowo.');
 			$result .= $this->left($sent);
 			return $result;
 		} else {
@@ -232,11 +260,14 @@ class orange
 	 */
 	private function token ()
 	{
+		$content = $this->curl($this->smsformurl);
 		$doc = new DOMDocument();
-		@$doc->loadHTML($this->curl($this->smsurl));
+		@$doc->loadHTML($content);
 		$xpath = new DOMXPath($doc);
 		$token = $xpath->evaluate('//input[@name="/amg/ptk/map/messagebox/formhandlers/MessageFormHandler.token"]')->item(0)->getAttribute('value');
-
+		
+		//$this->left($content,'before');
+		
 		return $token;
 	}
 
@@ -264,16 +295,27 @@ class orange
 	 * Sprawdza liczbę wiadomości SMS do wykorzystania w obecnym miesiącu
 	 *
 	 * @param string $content - treść HTML do przeanalizowania
+	 * @param string $type - EXPERIMENTAL - rodzaj sprawdzenia: przed, czy po
 	 * @return string - tekst
 	 */
-	private function left ($content)
+	private function left ($content, $type = 'after')
 	{
 		$doc = new DOMDocument();
 		@$doc->loadHTML($content);
 		$xpath = new DOMXPath($doc);
 		$left = $xpath->evaluate('//div[@id="syndication"]//p[@class="item"]/span[@class="value"]')->item(0)->nodeValue;
-		$result = $this->result('W tym miesiącu pozostało do wykorzystania: '.$left.' wiadomości SMS.');
-		return $result;
+		
+		return $this->result('Wiadomość została wysłana prawidłowo. W tym miesiącu pozostało do wykorzystania: '.$left.' wiadomości SMS.');
+		
+		# Experimental / NOT WORKING
+		/*if ($type == 'before') $this->_before = $left;
+		else {
+			# Compare _before and after
+			if ($left = $this->_before) return $this->result('Liczba dostępnych wiadomości ('.$left.') nie uległa zmianie. Oznacza to, że wystąpił błąd podczas wysyłania formularza z wiadomością.');
+			# Sent!
+			if ($left < $this->_before) return $this->result('Wiadomość została wysłana prawidłowo. W tym miesiącu pozostało do wykorzystania: '.$left.' wiadomości SMS.');
+		}*/
+		
 	}
 
 	/**
