@@ -1,17 +1,17 @@
 <?php
 /*
- * Klasa: orange v0.2 beta
+ * Klasa: orange v0.2.1 beta
  *
- * (c) <2009-2012> Written by: Krzysztof Tomasz Zembrowski
+ * (c) <2009-2014> Written by: Krzysztof Tomasz Zembrowski
  * MIT License: http://www.opensource.org/licenses/mit-license.php
  *
  * Part of `phpsms-pl`
  * http://code.google.com/p/phpsms-pl/
  *
  * Pozwala zarejestrowanym użytkownikom orange.pl wysyłać
- * wiadomości SMS do wszystkich sieci przy użyciu bramki mBox
+ * wiadomości SMS do wszystkich sieci przy użyciu bramki MultiBox
  *
- * Wersja bez COOKIE_JAR. Nie tworzy plików
+ * Wersja bez COOKIE_JAR. Nie tworzy plików.
  *
  * Wymagania:
  * + konto użytkownika orange.pl
@@ -25,7 +25,7 @@
 $login = 'login'; // nazwa użytkownika orange.pl
 $password = 'password'; // hasło do orange.pl
 $number = '500000000'; // numer odbiorcy
-$content = 'Hej, to dziala! Dzieki.'; // treść wiadomości
+$content = 'Hej, to działa. Dzięki!'; // treść wiadomości
 
 // I said: DO IT! Ok, you can try.
 try {
@@ -37,8 +37,12 @@ try {
 
 //Advanced setup
 /*try {
-	$o = new orange();
+	$o = new Orange();
 	$o -> Debug = true;
+	// Useful for debugging
+	//error_reporting(E_ALL);
+	//ini_set('display_errors', 1);
+	//ini_set('date.timezone', 'Europe/Warsaw');
 	$o -> time('start');
 	if ($o -> login ($login, $password)) echo $o -> send ($number, $content);
 	# Dziel dłuższe wiadomości
@@ -48,7 +52,7 @@ try {
 	echo '[ERROR] ' . $e -> getMessage();
 }*/
 
-class orange
+class Orange
 {
 	/**
 	 * Przechowuje identyfikatory i informacje
@@ -70,9 +74,9 @@ class orange
 	 * @var string $*url - odnośniki
 	 * @var string $length - maksymalna długość wiadomości, jeśli większa - dzielona na części o podanej długości
 	 */
-	private $useragent = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_7_4) AppleWebKit/534.57.2 (KHTML, like Gecko) Version/5.1.7 Safari/534.57.2';
+	private $useragent = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_2) AppleWebKit/537.75.14 (KHTML, like Gecko) Version/7.0.3 Safari/537.75.14';
 	private $loginformurl = 'https://www.orange.pl/zaloguj.phtml';
-	private $loginposturl = 'https://www.orange.pl/zaloguj.phtml?_DARGS=/ocp/gear/infoportal/portlets/login/login-box.jsp';
+	private $loginposturl = '?_DARGS=/ocp/gear/infoportal/portlets/login/login-box.jsp';
 	private $smsformurl = 'https://www.orange.pl/portal/map/map/message_box?mbox_edit=new&mbox_view=newsms';
 	private $smsposturl = 'https://www.orange.pl/portal/map/map/message_box?_DARGS=/gear/mapmessagebox/smsform.jsp';
 	private $length = '640';
@@ -121,6 +125,10 @@ class orange
 
 		$result = curl_exec($this->_curl);
 		
+		$error = curl_error($this->_curl);
+		
+		if (!empty($error) && $this->Debug) throw new Exception('[cURL] ' . $error . '; URL: ' . $url .'; POST ' . var_dump($post));
+
 		if (!empty($result)) $this->cookies($result);
 
 		return $result;
@@ -154,6 +162,8 @@ class orange
 	 */
 	public function login ($login, $password)
 	{
+		// Vist the orange ones to get cookies from them
+		$visit = $this->curl($this->loginformurl);
 		
 		$data = array(
 		'_dyncharset' => 'UTF-8',
@@ -176,9 +186,9 @@ class orange
         '_DARGS' => '/ocp/gear/infoportal/portlets/login/login-box.jsp'
 		);
 
-		curl_setopt($this->_curl, CURLOPT_REFERER, $this->logiformurl);
+		curl_setopt($this->_curl, CURLOPT_REFERER, $this->loginformurl);
 
-		$sent = $this->curl($this->loginposturl, $data);
+		$sent = $this->curl($this->loginformurl . $this->loginposturl, $data);
 
 		return $this->check($sent);
 	}
@@ -222,7 +232,7 @@ class orange
 		$sent = $this->curl($this->smsposturl, $data);
 
 		if ( $this->check($sent) && $summary) {
-			$result .= $this->left($sent);
+			$result = $this->left($sent);
 			return $result;
 		} else {
 			if ($this->Debug) return $sent;
