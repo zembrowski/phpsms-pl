@@ -1,11 +1,11 @@
 <?php
 /*
- * Klasa: orange v0.2.1 beta
+ * Klasa: orange v0.2.2 beta
  *
- * (c) <2009-2014> Written by: Krzysztof Tomasz Zembrowski
+ * (c) <2009-2016> Written by: Krzysztof Tomasz Zembrowski
  * MIT License: http://www.opensource.org/licenses/mit-license.php
  *
- * Part of `phpsms-pl`
+ * Was hosted until 2016-02-08 at:
  * http://code.google.com/p/phpsms-pl/
  *
  * Pozwala zarejestrowanym użytkownikom orange.pl wysyłać
@@ -21,7 +21,7 @@
  * - compare left SMS before and after
  * ? login request result as token (impossible due to false redirect)
  */
- 
+
 $login = 'login'; // nazwa użytkownika orange.pl
 $password = 'password'; // hasło do orange.pl
 $number = '500000000'; // numer odbiorcy
@@ -80,13 +80,13 @@ class Orange
 	private $smsformurl = 'https://www.orange.pl/portal/map/map/message_box?mbox_edit=new&mbox_view=newsms';
 	private $smsposturl = 'https://www.orange.pl/portal/map/map/message_box?_DARGS=/gear/mapmessagebox/smsform.jsp';
 	private $length = '640';
-	
+
 	/**
 	 * Debug (default: Off)
-	 * 
+	 *
 	 * @var boolean $Debug - verbose mode
 	 */
-	 
+
 	public $Debug = false;
 
 	/**
@@ -108,7 +108,7 @@ class Orange
 			CURLOPT_FOLLOWLOCATION => true,
 			CURLOPT_SSL_VERIFYPEER => false,
 			CURLOPT_SSL_VERIFYHOST => false);
-			
+
 		if (!empty($this->_cookie)) $var[CURLOPT_COOKIE] = $this->_cookie;
 
 		if ( !is_null($post) ) {
@@ -124,9 +124,9 @@ class Orange
 		curl_setopt_array($this->_curl, $var);
 
 		$result = curl_exec($this->_curl);
-		
+
 		$error = curl_error($this->_curl);
-		
+
 		if (!empty($error) && $this->Debug) throw new Exception('[cURL] ' . $error . '; URL: ' . $url .'; POST ' . var_dump($post));
 
 		if (!empty($result)) $this->cookies($result);
@@ -164,24 +164,23 @@ class Orange
 	{
 		// Vist the orange ones to get cookies from them
 		$visit = $this->curl($this->loginformurl);
-		
+
 		$data = array(
 		'_dyncharset' => 'UTF-8',
-        '_dynSessConf' => '-2354258262419359049',
+        '_dynSessConf' => '3180938745375173535',
         '/tp/core/profile/login/ProfileLoginFormHandler.loginErrorURL' => $this->smsformurl,
         '_D:/tp/core/profile/login/ProfileLoginFormHandler.loginErrorURL' => '',
         '/tp/core/profile/login/ProfileLoginFormHandler.loginSuccessURL' => '',
         '_D:/tp/core/profile/login/ProfileLoginFormHandler.loginSuccessURL' => '',
-        '/tp/core/profile/login/ProfileLoginFormHandler.firstEnter' => true,
+        '/tp/core/profile/login/ProfileLoginFormHandler.firstEnter' => 'true',
         '_D:/tp/core/profile/login/ProfileLoginFormHandler.firstEnter' => '',
         '/tp/core/profile/login/ProfileLoginFormHandler.value.login' => $login,
         '_D:/tp/core/profile/login/ProfileLoginFormHandler.value.login' => '',
         '/tp/core/profile/login/ProfileLoginFormHandler.value.password' => $password,
         '_D:/tp/core/profile/login/ProfileLoginFormHandler.value.password' => '',
-        '/tp/core/profile/login/ProfileLoginFormHandler.rememberMe' => true,
+        '/tp/core/profile/login/ProfileLoginFormHandler.rememberMe' => 'false',
         '_D:/tp/core/profile/login/ProfileLoginFormHandler.rememberMe' => '',
-        '/tp/core/profile/login/ProfileLoginFormHandler.login.x' => rand(0,60),
-        '/tp/core/profile/login/ProfileLoginFormHandler.login.y' => rand(0,30),
+        '/tp/core/profile/login/ProfileLoginFormHandler.login' => 'Zaloguj się',
         '_D:/tp/core/profile/login/ProfileLoginFormHandler.login' => '',
         '_DARGS' => '/ocp/gear/infoportal/portlets/login/login-box.jsp'
 		);
@@ -203,7 +202,7 @@ class Orange
 	public function send ($to, $body, $summary = true)
 	{
 		if (strlen($body) <= 0 || strlen($body) > 640) { throw new Exception('Wiadomość musi być dłuższa niż 0 znaków, natomiast krótsza niż 640 znaków');}
-		
+
 		$data = array(
 		'_dyncharset' => 'UTF-8',
 		'_dynSessConf' => '3180938745375173535',
@@ -238,7 +237,7 @@ class Orange
 			if ($this->Debug) return $sent;
 		}
 	}
-	
+
 	/**
 	 * Dzieli długą wiadomość SMS na części i wysyła
 	 *
@@ -249,20 +248,20 @@ class Orange
 	public function split ($to, $body)
 	{
 		$result = '';
-		
+
 		$m = str_split($body, $this->length);
-		
+
 		for ($n=0; $n<count($m); $n++) {
 			$sent = $this->send($to,$m[$n],false);
 			$result .= $this->result('Wysłano wiadomość '.($n+1).' z '.count($m));
 			flush();
 		}
-		
+
 		$result .= $this->left($sent);
-		
+
 		return $result;
 	}
-	
+
 	/**
 	 * Pobiera token z formularza
 	 *
@@ -275,9 +274,9 @@ class Orange
 		@$doc->loadHTML($content);
 		$xpath = new DOMXPath($doc);
 		$token = $xpath->evaluate('//input[@name="/amg/ptk/map/messagebox/formhandlers/MessageFormHandler.token"]')->item(0)->getAttribute('value');
-		
+
 		//$this->left($content,'before');
-		
+
 		return $token;
 	}
 
@@ -314,9 +313,9 @@ class Orange
 		@$doc->loadHTML($content);
 		$xpath = new DOMXPath($doc);
 		$left = $xpath->evaluate('//div[@id="syndication"]//p[@class="item"]/span[@class="value"]')->item(0)->nodeValue;
-		
+
 		return $this->result('Wiadomość została wysłana prawidłowo. W tym miesiącu pozostało do wykorzystania: '.$left.' wiadomości SMS.');
-		
+
 		# Experimental / NOT WORKING
 		/*if ($type == 'before') $this->_before = $left;
 		else {
@@ -325,7 +324,7 @@ class Orange
 			# Sent!
 			if ($left < $this->_before) return $this->result('Wiadomość została wysłana prawidłowo. W tym miesiącu pozostało do wykorzystania: '.$left.' wiadomości SMS.');
 		}*/
-		
+
 	}
 
 	/**
@@ -338,14 +337,14 @@ class Orange
 	private function result ($content)
 	{
 		$result = $content." \n";
-		
+
 		return $result;
 	}
-	
+
 	/**
 	 * Funkcja obliczająca czas wykonywania skryptu
 	 * (experimental)
-	 * 
+	 *
 	 * @param string $type [start/end]
 	 * @param boolean $result - czy zwrócić czas wykonywania
 	 * @return string - czas wykonywania
