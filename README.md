@@ -1,5 +1,5 @@
 # phpsms-pl
-Send SMS via orange.pl using PHP.
+Send SMS via orange.pl using PHP (with cURL and DOMXPath).
 
 Repository automatically exported from code.google.com/p/phpsms-pl
 
