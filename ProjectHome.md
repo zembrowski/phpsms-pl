@@ -1,10 +1,10 @@
 # Czym jest phpsms-pl? #
 Zestawem klas/skryptów napisanych w Object-Oriented PHP w celu wysyłania wiadomości SMS przy użyciu internetowych bramek SMS polskich operatorów sieci komórkowych.
 
-# Aktualna wersja 0.2.1 beta #
+# Aktualna wersja 0.2.2 beta #
 
 Do pobrania:
-https://phpsms-pl.googlecode.com/svn/trunk/sms.orange.php
+https://raw.githubusercontent.com/zembrowski/phpsms-pl/master/sms.orange.php
 
 # Czym phpsms-pl nie jest? #
 Nie znajdziesz tu z pewnością skryptów napisanych w innych niż PHP językach programowania.
